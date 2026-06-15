@@ -23,7 +23,7 @@ jobs:
 
       - name: Install Libraries
         run: |
-          pip install py-linkedin-jobs-scraper pandas
+          pip install linkedin-jobs-scraper pandas
 
       - name: Run Scraper
         run: python job_aggregator.py
