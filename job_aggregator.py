@@ -14,36 +14,45 @@ KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 
 extracted_posts = []
 
-print("Initializing Enterprise Google Search API...")
+print("Initializing Google Search API (Hard Override)...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        # We added the site: operator back, using quotation marks for precision
-        query = f'site:linkedin.com/posts hiring "{kw}" "{loc}"'
+        # Simplest natural search. We let the API parameters do the heavy lifting below.
+        query = f'"{kw}" "{loc}" hiring posts'
         print(f"Asking Google: {query}")
         
         params = {
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            "filter": "0", # OVERRIDE 1: Stops Google from hiding similar LinkedIn posts
-            "gl": "in"     # OVERRIDE 2: Forces the server to search from India (catches in.linkedin.com)
+            "siteSearch": "linkedin.com", # OVERRIDE: Forces Google to only look at LinkedIn
+            "filter": "0",                # OVERRIDE: Disables the duplicate blocker
+            "gl": "in"                    # OVERRIDE: Sets server search region to India
         }
         
         try:
             response = requests.get(url, params=params)
             data = response.json()
             
-            # X-RAY VISION
+            # Catch and print exact API errors if Google is rejecting the request
+            if "error" in data:
+                print(f"API ERROR: {data['error']['message']}")
+                continue
+            
             total_results = data.get("searchInformation", {}).get("totalResults", "0")
             print(f"--> Google found {total_results} results.")
             
             if "items" in data:
                 for item in data["items"]:
-                    title = item.get("title", "")
                     snippet = item.get("snippet", "") 
                     link = item.get("link", "")
+                    title = item.get("title", "")
+                    
+                    # Double-check it is actually a timeline post and not a standard company page
+                    if "/posts/" not in link and "/feed/update/" not in link:
+                        continue
                     
                     emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
                     mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
