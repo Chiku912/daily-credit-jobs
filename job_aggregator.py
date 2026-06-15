@@ -16,13 +16,13 @@ extracted_posts = []
 
 print("Initializing Enterprise Google Search API...")
 
-# 2. Run the queries with loosened, natural search terms
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        # We removed the strict quotation marks so Google can find natural variations
-        query = f'site:linkedin.com/posts hiring {kw} {loc}'
+        # We removed the site: operator because the Google Console is now handling the filtering!
+        # We added the word "posts" to ensure we get timeline feeds.
+        query = f'posts hiring "{kw}" "{loc}"'
         print(f"Asking Google: {query}")
         
         params = {
@@ -39,7 +39,6 @@ for loc in LOCATIONS:
             total_results = data.get("searchInformation", {}).get("totalResults", "0")
             print(f"--> Google found {total_results} results.")
             
-            # If Google found results, extract the text
             if "items" in data:
                 for item in data["items"]:
                     title = item.get("title", "")
@@ -63,7 +62,7 @@ for loc in LOCATIONS:
                     if not any(post['Apply Link'] == job_record['Apply Link'] for post in extracted_posts):
                         extracted_posts.append(job_record)
             
-            time.sleep(1) 
+            time.sleep(1.5) # Slightly longer pause to respect Google's limits
             
         except Exception as e:
             print(f"Error connecting to Google: {e}")
