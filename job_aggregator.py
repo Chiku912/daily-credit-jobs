@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 import pandas as pd
@@ -8,56 +7,48 @@ from linkedin_jobs_scraper.events import Events, EventData
 from linkedin_jobs_scraper.query import Query, QueryOptions, QueryFilters
 from linkedin_jobs_scraper.filters import TimeFilters
 
-# 1. Configuration & Requirements
+# 1. Updated Configuration
 LOCATIONS = ['Chittorgarh', 'Bhilwara', 'Udaipur', 'Mumbai', 'Navi Mumbai']
-KEYWORDS = ['Credit Manager', 'Credit Risk']
-
-# Sub-filters to match within descriptions
-MUST_HAVE_KEYWORDS = ['sme', 'large ticket', 'turnover', 'medium corporate', 'large corporate', 'underwriting', 'caam']
+KEYWORDS = ['Credit', 'SME', 'Senior Credit', 'Area Head', 'Cluster', 'Large Corporate', 'Hiring Credit Position']
 
 extracted_jobs = []
 
-# 2. Callback function when a job is successfully scraped
+# 2. Capture Data from the Official Jobs Section
 def on_data(data: EventData):
-    desc_lower = data.description.lower()
+    # Extract email if recruiters left one in the official job description
+    emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', data.description)
+    mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
     
-    # Check if the job description contains our target banking keywords
-    has_keyword = any(kw in desc_lower for kw in MUST_HAVE_KEYWORDS)
+    job_record = {
+        "Job Profile": data.title,
+        "Posted by": data.company,
+        "Location": data.place,
+        "Mail id": mail_id,
+        "Posted Date": data.date if data.date else "Recently",
+        "Apply Link": data.apply_link if data.apply_link else data.link
+    }
     
-    if has_keyword:
-        # Regex to scan for email IDs inside the post description
-        emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', data.description)
-        mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
-        
-        # Format the data according to your required layout
-        job_record = {
-            "Job Profile": data.title,
-            "Posted by": data.company,
-            "Location": data.place,
-            "Mail id": mail_id,
-            "Posted Date": data.date if data.date else "Recently",
-            "Apply Link": data.apply_link if data.apply_link else data.link
-        }
+    # Avoid duplicate entries on the dashboard
+    if job_record not in extracted_jobs:
         extracted_jobs.append(job_record)
         print(f"Captured: {data.title} at {data.company} ({data.place})")
 
 def on_error(error):
-    pass # Silently handle minor scraping structural errors
+    pass # Silently bypass minor structure changes on LinkedIn's end
 
 # 3. Setup Scraper Engine
 scraper = LinkedinScraper(
-    chrome_executable_path=None, # Automatically finds Chrome
+    chrome_executable_path=None, 
     chrome_options=None,
-    headless=True,               # Runs quietly in the background
+    headless=True,               
     max_workers=2,
-    slow_mo=1.5                  # Prevents hitting rate limits
+    slow_mo=1.5                  
 )
 
-# Bind events
 scraper.on(Events.DATA, on_data)
 scraper.on(Events.ERROR, on_error)
 
-# 4. Construct Queries dynamically
+# 4. Construct Queries
 queries = []
 for kw in KEYWORDS:
     for loc in LOCATIONS:
@@ -66,27 +57,26 @@ for kw in KEYWORDS:
                 query=kw,
                 options=QueryOptions(
                     locations=[f"{loc}, India"],
-                    limit=15, # Limit per category to keep execution fast
+                    limit=10, # Limits slightly to prevent GitHub server timeout
                     filters=QueryFilters(
-                        time=TimeFilters.DAY # Fetches fresh posts (last 24 hours)
+                        time=TimeFilters.DAY # Last 24 hours
                     )
                 )
             )
         )
 
-print("Starting one-click daily job aggregation...")
+print("Starting updated job aggregation for official LinkedIn Jobs...")
 scraper.run(queries)
 
-# 5. Build the Interactive HTML Single-Page View
+# 5. Build the Output Dashboard
 if extracted_jobs:
     df = pd.DataFrame(extracted_jobs)
     
-    # Generate an elegant, scannable HTML file
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Daily Credit Risk Job Feed</title>
+        <title>Daily Credit & Corporate Job Feed</title>
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 30px; background-color: #f4f6f9; }}
             h2 {{ color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
@@ -101,8 +91,8 @@ if extracted_jobs:
         </style>
     </head>
     <body>
-        <h2>Daily Hiring Tracker: Credit Manager / Risk</h2>
-        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Locations: {', '.join(LOCATIONS)}</div>
+        <h2>Official LinkedIn Jobs Tracker: Credit & SME</h2>
+        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Tracking Official Job Postings</div>
         <table>
             <tr>
                 <th>Posted By</th>
@@ -133,11 +123,10 @@ if extracted_jobs:
     </html>
     """
     
-    # Save the output file
     output_path = "job_dashboard.html"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
         
-    print(f"\nSuccess! Open '{os.path.abspath(output_path)}' in your browser to view and apply.")
+    print("Success! Dashboard updated.")
 else:
-    print("\nNo matching jobs found in the last 24 hours with your specific keywords.")
+    print("No matching official jobs found in the last 24 hours.")
