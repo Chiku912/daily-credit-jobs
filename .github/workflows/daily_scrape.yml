@@ -23,7 +23,7 @@ jobs:
 
       - name: Install Libraries
         run: |
-          pip install duckduckgo-search pandas
+          pip install ddgs pandas
 
       - name: Run Scraper
         run: python job_aggregator.py
