@@ -15,27 +15,27 @@ KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 extracted_posts = []
 
 print("Initializing Enterprise Google Search API...")
-
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        # We removed the site: operator because the Google Console is now handling the filtering!
-        # We added the word "posts" to ensure we get timeline feeds.
-        query = f'posts hiring "{kw}" "{loc}"'
+        # We added the site: operator back, using quotation marks for precision
+        query = f'site:linkedin.com/posts hiring "{kw}" "{loc}"'
         print(f"Asking Google: {query}")
         
         params = {
             "key": API_KEY,
             "cx": CX_ID,
-            "q": query
+            "q": query,
+            "filter": "0", # OVERRIDE 1: Stops Google from hiding similar LinkedIn posts
+            "gl": "in"     # OVERRIDE 2: Forces the server to search from India (catches in.linkedin.com)
         }
         
         try:
             response = requests.get(url, params=params)
             data = response.json()
             
-            # X-RAY VISION: Print exactly how many results Google's API claims to see
+            # X-RAY VISION
             total_results = data.get("searchInformation", {}).get("totalResults", "0")
             print(f"--> Google found {total_results} results.")
             
@@ -62,7 +62,7 @@ for loc in LOCATIONS:
                     if not any(post['Apply Link'] == job_record['Apply Link'] for post in extracted_posts):
                         extracted_posts.append(job_record)
             
-            time.sleep(1.5) # Slightly longer pause to respect Google's limits
+            time.sleep(1.5) 
             
         except Exception as e:
             print(f"Error connecting to Google: {e}")
