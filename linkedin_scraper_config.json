@@ -1,0 +1,40 @@
+{
+    "dashboard_title": "Daily Credit Risk & Corporate Banking Job Aggregator",
+    "frequency": "Daily (Single-Click Execution)",
+    "target_locations": [
+        "Chittorgarh",
+        "Bhilwara",
+        "Udaipur",
+        "Mumbai",
+        "Navi Mumbai"
+    ],
+    "target_profiles": [
+        "Credit Manager",
+        "Credit Risk",
+        "Credit Underwriter",
+        "Corporate Credit Appraisal"
+    ],
+    "mandatory_keywords": [
+        "sme",
+        "large ticket",
+        "turnover",
+        "medium corporate",
+        "large corporate",
+        "underwriting",
+        "caam"
+    ],
+    "output_schema": {
+        "heading_1": "Posted by",
+        "heading_2": "Job Profile",
+        "heading_3": "Location",
+        "heading_4": "Mail id",
+        "heading_5": "Posted Date",
+        "action_button": "Click to Apply"
+    },
+    "automation_settings": {
+        "headless_mode": true,
+        "time_filter_hours": 24,
+        "auto_extract_emails_from_text": true,
+        "export_format": "interactive_html_dashboard"
+    }
+}
