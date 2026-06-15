@@ -1,82 +1,71 @@
-import os
 import re
+import time
 import pandas as pd
 from datetime import datetime
-from linkedin_jobs_scraper import LinkedinScraper
-from linkedin_jobs_scraper.events import Events, EventData
-from linkedin_jobs_scraper.query import Query, QueryOptions, QueryFilters
-from linkedin_jobs_scraper.filters import TimeFilters
+from duckduckgo_search import DDGS
 
-# 1. Updated Configuration
+# 1. Configuration
 LOCATIONS = ['Chittorgarh', 'Bhilwara', 'Udaipur', 'Mumbai', 'Navi Mumbai']
-KEYWORDS = ['Credit', 'SME', 'Senior Credit', 'Area Head', 'Cluster', 'Large Corporate', 'Hiring Credit Position']
 
-extracted_jobs = []
+# We group keywords so the search engine understands we want ANY of these roles
+ROLE_KEYWORDS = '"Credit Manager" OR "Credit Risk" OR "SME" OR "Underwriting" OR "Corporate"'
 
-# 2. Capture Data from the Official Jobs Section
-def on_data(data: EventData):
-    # Extract email if recruiters left one in the official job description
-    emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', data.description)
-    mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
-    
-    job_record = {
-        "Job Profile": data.title,
-        "Posted by": data.company,
-        "Location": data.place,
-        "Mail id": mail_id,
-        "Posted Date": data.date if data.date else "Recently",
-        "Apply Link": data.apply_link if data.apply_link else data.link
-    }
-    
-    # Avoid duplicate entries on the dashboard
-    if job_record not in extracted_jobs:
-        extracted_jobs.append(job_record)
-        print(f"Captured: {data.title} at {data.company} ({data.place})")
+extracted_posts = []
 
-def on_error(error):
-    pass # Silently bypass minor structure changes on LinkedIn's end
+print("Initializing Search Engine Backdoor...")
 
-# 3. Setup Scraper Engine
-scraper = LinkedinScraper(
-    chrome_executable_path=None, 
-    chrome_options=None,
-    headless=True,               
-    max_workers=2,
-    slow_mo=1.5                  
-)
-
-scraper.on(Events.DATA, on_data)
-scraper.on(Events.ERROR, on_error)
-
-# 4. Construct Queries
-queries = []
-for kw in KEYWORDS:
+# 2. Run the Search Engine Queries
+with DDGS() as ddgs:
     for loc in LOCATIONS:
-        queries.append(
-            Query(
-                query=kw,
-                options=QueryOptions(
-                    locations=[f"{loc}, India"],
-                    limit=10, # Limits slightly to prevent GitHub server timeout
-                    filters=QueryFilters(
-                        time=TimeFilters.DAY # Last 24 hours
-                    )
-                )
-            )
-        )
+        # 'site:linkedin.com/posts' forces the engine to ONLY look at individual user feeds
+        # '"hiring"' ensures we are looking at job announcements
+        query = f'site:linkedin.com/posts "hiring" ({ROLE_KEYWORDS}) "{loc}"'
+        print(f"Scanning feed posts for: {loc}...")
+        
+        try:
+            # Fetch the top 15 most relevant posts per location
+            results = ddgs.text(query, max_results=15)
+            
+            if results:
+                for r in results:
+                    title = r.get('title', '')
+                    snippet = r.get('body', '') # This is the actual text of the LinkedIn post!
+                    link = r.get('href', '')
+                    
+                    # Search for emails hidden inside the post text
+                    emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
+                    mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
+                    
+                    # Clean up the poster's name (Search engines usually format titles as "Name on LinkedIn: Post...")
+                    poster = title.split(" on LinkedIn")[0] if " on LinkedIn" in title else "Recruiter/Individual"
+                    
+                    job_record = {
+                        "Job Profile": "Feed Post: " + snippet[:45] + "...",
+                        "Posted by": poster[:30],
+                        "Location": loc,
+                        "Mail id": mail_id,
+                        "Posted Date": "Recent", # Search engines surface relevant, but not exact timestamped results
+                        "Apply Link": link
+                    }
+                    
+                    if job_record not in extracted_posts:
+                        extracted_posts.append(job_record)
+            
+            # Pause for 3 seconds between city searches so the search engine doesn't block us
+            time.sleep(3) 
+            
+        except Exception as e:
+            print(f"Error scanning {loc}: {e}")
 
-print("Starting updated job aggregation for official LinkedIn Jobs...")
-scraper.run(queries)
-
-# 5. Build the Output Dashboard
-if extracted_jobs:
-    df = pd.DataFrame(extracted_jobs)
+# 3. Build the Single-Page View Dashboard
+if extracted_posts:
+    df = pd.DataFrame(extracted_posts)
     
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Daily Credit & Corporate Job Feed</title>
+        <title>Daily Credit Job Feed (Individual Posts)</title>
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 30px; background-color: #f4f6f9; }}
             h2 {{ color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
@@ -91,12 +80,12 @@ if extracted_jobs:
         </style>
     </head>
     <body>
-        <h2>Official LinkedIn Jobs Tracker: Credit & SME</h2>
-        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Tracking Official Job Postings</div>
+        <h2>Individual Recruiter Posts: Credit & SME Teams</h2>
+        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Tracking Hidden Feed Posts</div>
         <table>
             <tr>
                 <th>Posted By</th>
-                <th>Job Profile</th>
+                <th>Post Preview</th>
                 <th>Location</th>
                 <th>Mail ID / Action</th>
                 <th>Posted Date</th>
@@ -113,7 +102,7 @@ if extracted_jobs:
                 <td>{row['Location']}</td>
                 <td>{mail_display}</td>
                 <td>{row['Posted Date']}</td>
-                <td><a class="apply-btn" href="{row['Apply Link']}" target="_blank">Click to Apply</a></td>
+                <td><a class="apply-btn" href="{row['Apply Link']}" target="_blank">View Post</a></td>
             </tr>
         """
         
@@ -127,6 +116,6 @@ if extracted_jobs:
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
         
-    print("Success! Dashboard updated.")
+    print(f"\nSuccess! Captured {len(extracted_posts)} individual feed posts.")
 else:
-    print("No matching official jobs found in the last 24 hours.")
+    print("\nNo matching feed posts found today.")
