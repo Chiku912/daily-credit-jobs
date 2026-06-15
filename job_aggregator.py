@@ -1,59 +1,63 @@
-import re
+import os
 import time
+import requests
 import pandas as pd
 from datetime import datetime
-from duckduckgo_search import DDGS
+import re
 
-# 1. Configuration
+# 1. Securely grab your keys from the GitHub Vault
+API_KEY = os.environ.get("GCP_API_KEY")
+CX_ID = os.environ.get("GCP_CX_ID")
+
 LOCATIONS = ['Chittorgarh', 'Bhilwara', 'Udaipur', 'Mumbai', 'Navi Mumbai']
-
-# We broke these apart so the bot searches them one by one, exactly like a human would
 KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 
 extracted_posts = []
 
-print("Initializing Search Engine Backdoor...")
+print("Initializing Enterprise Google Search API...")
 
-# 2. Run the Simplified Queries
-with DDGS() as ddgs:
-    for loc in LOCATIONS:
-        for kw in KEYWORDS:
-            # This generates the exact query you tested in Google
-            query = f'site:linkedin.com/posts "hiring" "{kw}" "{loc}"'
-            print(f"Searching exactly: {query}")
+# 2. Run the exact queries through Google's brain
+for loc in LOCATIONS:
+    for kw in KEYWORDS:
+        query = f'site:linkedin.com/posts "hiring" "{kw}" "{loc}"'
+        print(f"Asking Google: {query}")
+        
+        # This is the direct secure line to Google
+        url = f"https://customsearch.googleapis.com/customsearch/v1?key={API_KEY}&cx={CX_ID}&q={query}"
+        
+        try:
+            response = requests.get(url)
+            data = response.json()
             
-            try:
-                results = ddgs.text(query, max_results=5)
-                
-                if results:
-                    for r in results:
-                        title = r.get('title', '')
-                        snippet = r.get('body', '') 
-                        link = r.get('href', '')
-                        
-                        emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
-                        mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
-                        
-                        poster = title.split(" on LinkedIn")[0] if " on LinkedIn" in title else "Recruiter/Individual"
-                        
-                        job_record = {
-                            "Job Profile": "Feed Post: " + snippet[:45] + "...",
-                            "Posted by": poster[:30],
-                            "Location": loc,
-                            "Mail id": mail_id,
-                            "Posted Date": "Recent", 
-                            "Apply Link": link
-                        }
-                        
-                        # Prevent duplicate posts from showing up
-                        if not any(post['Apply Link'] == job_record['Apply Link'] for post in extracted_posts):
-                            extracted_posts.append(job_record)
-                
-                # Pause for 2 seconds so DuckDuckGo doesn't block the server
-                time.sleep(2) 
-                
-            except Exception as e:
-                print(f"Error scanning {loc} for {kw}: {e}")
+            # If Google found results, extract the text and emails
+            if "items" in data:
+                for item in data["items"]:
+                    title = item.get("title", "")
+                    snippet = item.get("snippet", "") 
+                    link = item.get("link", "")
+                    
+                    emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
+                    mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
+                    
+                    poster = title.split(" on LinkedIn")[0] if " on LinkedIn" in title else "Recruiter/Individual"
+                    
+                    job_record = {
+                        "Job Profile": "Feed Post: " + snippet[:45] + "...",
+                        "Posted by": poster[:30],
+                        "Location": loc,
+                        "Mail id": mail_id,
+                        "Posted Date": "Recent", 
+                        "Apply Link": link
+                    }
+                    
+                    # Prevent duplicate posts
+                    if not any(post['Apply Link'] == job_record['Apply Link'] for post in extracted_posts):
+                        extracted_posts.append(job_record)
+            
+            time.sleep(1) # A polite 1-second pause between Google searches
+            
+        except Exception as e:
+            print(f"Error connecting to Google: {e}")
 
 # 3. Build the Dashboard
 if extracted_posts:
@@ -79,7 +83,7 @@ if extracted_posts:
     </head>
     <body>
         <h2>Individual Recruiter Posts: Credit & SME Teams</h2>
-        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}</div>
+        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Powered by Google API</div>
         <table>
             <tr>
                 <th>Posted By</th>
@@ -113,6 +117,6 @@ if extracted_posts:
     with open("job_dashboard.html", "w", encoding="utf-8") as f:
         f.write(html_content)
         
-    print(f"\nSuccess! Captured {len(extracted_posts)} individual feed posts.")
+    print(f"\nSuccess! Captured {len(extracted_posts)} feed posts using Google.")
 else:
     print("\nNo matching feed posts found today.")
