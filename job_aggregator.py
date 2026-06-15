@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime
 import re
 
-# 1. Securely grab your keys from the GitHub Vault
+# 1. Securely grab your keys
 API_KEY = os.environ.get("GCP_API_KEY")
 CX_ID = os.environ.get("GCP_CX_ID")
 
@@ -16,20 +16,30 @@ extracted_posts = []
 
 print("Initializing Enterprise Google Search API...")
 
-# 2. Run the exact queries through Google's brain
+# 2. Run the queries with proper URL Encoding
+url = "https://customsearch.googleapis.com/customsearch/v1"
+
 for loc in LOCATIONS:
     for kw in KEYWORDS:
         query = f'site:linkedin.com/posts "hiring" "{kw}" "{loc}"'
         print(f"Asking Google: {query}")
         
-        # This is the direct secure line to Google
-        url = f"https://customsearch.googleapis.com/customsearch/v1?key={API_KEY}&cx={CX_ID}&q={query}"
+        # Using the 'params' dictionary forces Python to properly encode the spaces and quotes!
+        params = {
+            "key": API_KEY,
+            "cx": CX_ID,
+            "q": query
+        }
         
         try:
-            response = requests.get(url)
+            response = requests.get(url, params=params)
             data = response.json()
             
-            # If Google found results, extract the text and emails
+            # X-RAY VISION: Print exactly how many results Google's API claims to see
+            total_results = data.get("searchInformation", {}).get("totalResults", "0")
+            print(f"--> Google found {total_results} results.")
+            
+            # If Google found results, extract the text
             if "items" in data:
                 for item in data["items"]:
                     title = item.get("title", "")
@@ -50,11 +60,10 @@ for loc in LOCATIONS:
                         "Apply Link": link
                     }
                     
-                    # Prevent duplicate posts
                     if not any(post['Apply Link'] == job_record['Apply Link'] for post in extracted_posts):
                         extracted_posts.append(job_record)
             
-            time.sleep(1) # A polite 1-second pause between Google searches
+            time.sleep(1) 
             
         except Exception as e:
             print(f"Error connecting to Google: {e}")
