@@ -16,15 +16,15 @@ extracted_posts = []
 
 print("Initializing Enterprise Google Search API...")
 
-# 2. Run the queries with proper URL Encoding
+# 2. Run the queries with loosened, natural search terms
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        query = f'site:linkedin.com/posts "hiring" "{kw}" "{loc}"'
+        # We removed the strict quotation marks so Google can find natural variations
+        query = f'site:linkedin.com/posts hiring {kw} {loc}'
         print(f"Asking Google: {query}")
         
-        # Using the 'params' dictionary forces Python to properly encode the spaces and quotes!
         params = {
             "key": API_KEY,
             "cx": CX_ID,
