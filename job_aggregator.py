@@ -14,20 +14,20 @@ KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 
 extracted_posts = []
 
-print("Initializing Bulletproof Google Search API...")
+print("Initializing 72-Hour Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        # We removed the buggy /posts from the URL search and added "India" to target the region safely
-        query = f'site:linkedin.com "{kw}" "{loc}" India hiring'
+        query = f'site:linkedin.com "{kw}" "{loc}" India hiring posts'
         print(f"Asking Google: {query}")
         
-        # We removed ALL extra parameters that were causing the API to crash
         params = {
             "key": API_KEY,
             "cx": CX_ID,
-            "q": query
+            "q": query,
+            "gl": "in",           # Localizes the search engine to India
+            "dateRestrict": "d3"  # THE UPGRADE: Restricts results strictly to the past 3 days (72 hours)
         }
         
         try:
@@ -39,7 +39,7 @@ for loc in LOCATIONS:
                 continue
             
             total_results = data.get("searchInformation", {}).get("totalResults", "0")
-            print(f"--> Google found {total_results} results.")
+            print(f"--> Google found {total_results} results in the last 72 hours.")
             
             if "items" in data:
                 for item in data["items"]:
@@ -47,7 +47,6 @@ for loc in LOCATIONS:
                     link = item.get("link", "")
                     title = item.get("title", "")
                     
-                    # We let Python do the filtering for posts, rather than fighting the Google API
                     if "/posts/" not in link and "/feed/update/" not in link:
                         continue
                     
@@ -61,7 +60,7 @@ for loc in LOCATIONS:
                         "Posted by": poster[:30],
                         "Location": loc,
                         "Mail id": mail_id,
-                        "Posted Date": "Recent", 
+                        "Posted Date": "Past 72 Hrs", 
                         "Apply Link": link
                     }
                     
@@ -81,7 +80,7 @@ if extracted_posts:
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Daily Credit Job Feed (Individual Posts)</title>
+        <title>Daily Credit Job Feed (Past 72 Hours)</title>
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 30px; background-color: #f4f6f9; }}
             h2 {{ color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
@@ -96,7 +95,7 @@ if extracted_posts:
         </style>
     </head>
     <body>
-        <h2>Individual Recruiter Posts: Credit & SME Teams</h2>
+        <h2>Individual Recruiter Posts: Credit & SME Teams (72-Hour Window)</h2>
         <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Powered by Google API</div>
         <table>
             <tr>
@@ -133,4 +132,4 @@ if extracted_posts:
         
     print(f"\nSuccess! Captured {len(extracted_posts)} feed posts using Google.")
 else:
-    print("\nNo matching feed posts found today.")
+    print("\nNo matching feed posts found in the last 72 hours.")
