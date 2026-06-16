@@ -14,20 +14,20 @@ KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 
 extracted_posts = []
 
-print("Initializing Clean Google Search API...")
+print("Initializing Bulletproof Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        # Putting the site command back in the text query where it is safest
-        query = f'site:linkedin.com/posts "{kw}" "{loc}" hiring'
+        # We removed the buggy /posts from the URL search and added "India" to target the region safely
+        query = f'site:linkedin.com "{kw}" "{loc}" India hiring'
         print(f"Asking Google: {query}")
         
+        # We removed ALL extra parameters that were causing the API to crash
         params = {
             "key": API_KEY,
             "cx": CX_ID,
-            "q": query,
-            "gl": "in"  # THE ONLY OVERRIDE NEEDED: Forces the server to search from India
+            "q": query
         }
         
         try:
@@ -47,6 +47,7 @@ for loc in LOCATIONS:
                     link = item.get("link", "")
                     title = item.get("title", "")
                     
+                    # We let Python do the filtering for posts, rather than fighting the Google API
                     if "/posts/" not in link and "/feed/update/" not in link:
                         continue
                     
