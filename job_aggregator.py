@@ -14,20 +14,21 @@ KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 
 extracted_posts = []
 
-print("Initializing 72-Hour Google Search API...")
+print("Initializing Final 72-Hour Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        query = f'site:linkedin.com "{kw}" "{loc}" India hiring posts'
+        # THE FIX: Removed "site:linkedin.com" from the text query.
+        query = f'"{kw}" "{loc}" India hiring posts'
         print(f"Asking Google: {query}")
         
+        # THE FIX: Removed ALL extra parameters except the 3-day date restriction.
         params = {
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            "gl": "in",           # Localizes the search engine to India
-            "dateRestrict": "d3"  # THE UPGRADE: Restricts results strictly to the past 3 days (72 hours)
+            "dateRestrict": "d3" 
         }
         
         try:
