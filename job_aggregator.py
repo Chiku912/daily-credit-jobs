@@ -19,7 +19,6 @@ url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        # Simplest natural search. We let the API parameters do the heavy lifting below.
         query = f'"{kw}" "{loc}" hiring posts'
         print(f"Asking Google: {query}")
         
@@ -27,16 +26,16 @@ for loc in LOCATIONS:
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            "siteSearch": "linkedin.com", # OVERRIDE: Forces Google to only look at LinkedIn
-            "filter": "0",                # OVERRIDE: Disables the duplicate blocker
-            "gl": "in"                    # OVERRIDE: Sets server search region to India
+            "siteSearch": "linkedin.com", 
+            "siteSearchFilter": "i",      # THE FIX: explicitly tells Google to Include the site
+            "filter": "0",                
+            "gl": "in"                    
         }
         
         try:
             response = requests.get(url, params=params)
             data = response.json()
             
-            # Catch and print exact API errors if Google is rejecting the request
             if "error" in data:
                 print(f"API ERROR: {data['error']['message']}")
                 continue
@@ -50,7 +49,6 @@ for loc in LOCATIONS:
                     link = item.get("link", "")
                     title = item.get("title", "")
                     
-                    # Double-check it is actually a timeline post and not a standard company page
                     if "/posts/" not in link and "/feed/update/" not in link:
                         continue
                     
