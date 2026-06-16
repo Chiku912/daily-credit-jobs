@@ -14,22 +14,20 @@ KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 
 extracted_posts = []
 
-print("Initializing Google Search API (Hard Override)...")
+print("Initializing Clean Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        query = f'"{kw}" "{loc}" hiring posts'
+        # Putting the site command back in the text query where it is safest
+        query = f'site:linkedin.com/posts "{kw}" "{loc}" hiring'
         print(f"Asking Google: {query}")
         
         params = {
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            "siteSearch": "linkedin.com", 
-            "siteSearchFilter": "i",      # THE FIX: explicitly tells Google to Include the site
-            "filter": "0",                
-            "gl": "in"                    
+            "gl": "in"  # THE ONLY OVERRIDE NEEDED: Forces the server to search from India
         }
         
         try:
