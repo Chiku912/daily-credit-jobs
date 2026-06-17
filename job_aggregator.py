@@ -5,30 +5,28 @@ import pandas as pd
 from datetime import datetime
 import re
 
-# 1. Securely grab your keys
-API_KEY = os.environ.get("GCP_API_KEY")
-CX_ID = os.environ.get("GCP_CX_ID")
+# 1. Securely grab your keys and strip any invisible spaces
+API_KEY = os.environ.get("GCP_API_KEY", "").strip()
+CX_ID = os.environ.get("GCP_CX_ID", "").strip()
 
 LOCATIONS = ['Chittorgarh', 'Bhilwara', 'Udaipur', 'Mumbai', 'Navi Mumbai']
 KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 
 extracted_posts = []
 
-print("Initializing Final 72-Hour Google Search API...")
+print("Initializing Clean Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
-        # THE FIX: Removed "site:linkedin.com" from the text query.
         query = f'"{kw}" "{loc}" India hiring posts'
         print(f"Asking Google: {query}")
         
-        # THE FIX: Removed ALL extra parameters except the 3-day date restriction.
+        # Removed the buggy dateRestrict parameter. 
         params = {
             "key": API_KEY,
             "cx": CX_ID,
-            "q": query,
-            "dateRestrict": "d3" 
+            "q": query
         }
         
         try:
@@ -40,7 +38,7 @@ for loc in LOCATIONS:
                 continue
             
             total_results = data.get("searchInformation", {}).get("totalResults", "0")
-            print(f"--> Google found {total_results} results in the last 72 hours.")
+            print(f"--> Google found {total_results} results.")
             
             if "items" in data:
                 for item in data["items"]:
@@ -61,7 +59,7 @@ for loc in LOCATIONS:
                         "Posted by": poster[:30],
                         "Location": loc,
                         "Mail id": mail_id,
-                        "Posted Date": "Past 72 Hrs", 
+                        "Posted Date": "Recent", 
                         "Apply Link": link
                     }
                     
@@ -81,7 +79,7 @@ if extracted_posts:
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Daily Credit Job Feed (Past 72 Hours)</title>
+        <title>Daily Credit Job Feed (Individual Posts)</title>
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 30px; background-color: #f4f6f9; }}
             h2 {{ color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
@@ -96,7 +94,7 @@ if extracted_posts:
         </style>
     </head>
     <body>
-        <h2>Individual Recruiter Posts: Credit & SME Teams (72-Hour Window)</h2>
+        <h2>Individual Recruiter Posts: Credit & SME Teams</h2>
         <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Powered by Google API</div>
         <table>
             <tr>
@@ -133,4 +131,4 @@ if extracted_posts:
         
     print(f"\nSuccess! Captured {len(extracted_posts)} feed posts using Google.")
 else:
-    print("\nNo matching feed posts found in the last 72 hours.")
+    print("\nNo matching feed posts found today.")
