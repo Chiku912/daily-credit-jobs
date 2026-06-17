@@ -1,38 +1,46 @@
 import os
+import sys
 import time
 import requests
 import pandas as pd
 from datetime import datetime
 import re
 
-# 1. Securely grab your keys and strip any invisible spaces
+# 1. Securely grab keys and strip any accidental invisible spaces
 API_KEY = os.environ.get("GCP_API_KEY", "").strip()
 CX_ID = os.environ.get("GCP_CX_ID", "").strip()
+
+# Diagnostic Sanity Check - Stops the script immediately if GitHub fails to pass the keys
+if not CX_ID or not API_KEY:
+    print("CRITICAL ERROR: GitHub is NOT passing the secrets to Python! Please check your repository Secrets.")
+    sys.exit(1)
 
 LOCATIONS = ['Chittorgarh', 'Bhilwara', 'Udaipur', 'Mumbai', 'Navi Mumbai']
 KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
 
 extracted_posts = []
 
-print("Initializing Clean Google Search API...")
+print("Initializing Google Search API (72-Hour Window)...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
 for loc in LOCATIONS:
     for kw in KEYWORDS:
+        # Clean query targeting the specific words
         query = f'"{kw}" "{loc}" India hiring posts'
         print(f"Asking Google: {query}")
         
-        # Removed the buggy dateRestrict parameter. 
         params = {
             "key": API_KEY,
             "cx": CX_ID,
-            "q": query
+            "q": query,
+            "dateRestrict": "d3"  # Pulls data strictly from the past 72 hours
         }
         
         try:
             response = requests.get(url, params=params)
             data = response.json()
             
+            # Catch exact Google API errors
             if "error" in data:
                 print(f"API ERROR: {data['error']['message']}")
                 continue
@@ -46,9 +54,11 @@ for loc in LOCATIONS:
                     link = item.get("link", "")
                     title = item.get("title", "")
                     
+                    # Verify it is an actual LinkedIn post
                     if "/posts/" not in link and "/feed/update/" not in link:
                         continue
                     
+                    # Extract emails
                     emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
                     mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
                     
@@ -59,19 +69,20 @@ for loc in LOCATIONS:
                         "Posted by": poster[:30],
                         "Location": loc,
                         "Mail id": mail_id,
-                        "Posted Date": "Recent", 
+                        "Posted Date": "Past 72 Hrs", 
                         "Apply Link": link
                     }
                     
+                    # Avoid duplicates
                     if not any(post['Apply Link'] == job_record['Apply Link'] for post in extracted_posts):
                         extracted_posts.append(job_record)
             
-            time.sleep(1.5) 
+            time.sleep(1.5) # Pause to respect Google API limits
             
         except Exception as e:
             print(f"Error connecting to Google: {e}")
 
-# 3. Build the Dashboard
+# 3. Build the Dashboard HTML
 if extracted_posts:
     df = pd.DataFrame(extracted_posts)
     
@@ -79,7 +90,7 @@ if extracted_posts:
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Daily Credit Job Feed (Individual Posts)</title>
+        <title>Daily Credit Job Feed (Past 72 Hours)</title>
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 30px; background-color: #f4f6f9; }}
             h2 {{ color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
@@ -94,7 +105,7 @@ if extracted_posts:
         </style>
     </head>
     <body>
-        <h2>Individual Recruiter Posts: Credit & SME Teams</h2>
+        <h2>Individual Recruiter Posts: Credit & SME Teams (72-Hour Window)</h2>
         <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Powered by Google API</div>
         <table>
             <tr>
@@ -131,4 +142,4 @@ if extracted_posts:
         
     print(f"\nSuccess! Captured {len(extracted_posts)} feed posts using Google.")
 else:
-    print("\nNo matching feed posts found today.")
+    print("\nNo matching feed posts found in the past 72 hours.")
