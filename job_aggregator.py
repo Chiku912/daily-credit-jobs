@@ -15,6 +15,10 @@ if not CX_ID or not API_KEY:
     print("CRITICAL ERROR: GitHub is NOT passing the secrets to Python!")
     sys.exit(1)
 
+# NEW: Tracker to prove which key GitHub is actually using 
+print(f"DIAGNOSTIC -> Using API Key ending in: ...{API_KEY[-4:]}")
+print(f"DIAGNOSTIC -> Using CX ID ending in: ...{CX_ID[-4:]}")
+
 # 2. Load the User's Custom JSON Configuration
 try:
     with open("linkedin_scraper_config.json", "r") as config_file:
@@ -32,8 +36,7 @@ extracted_posts = []
 print("Initializing Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
-# 3. Run the Scraper (Location x Profile)
-# We avoid looping through mandatory_keywords to protect your 100-query daily quota
+# 3. Run the Scraper
 for loc in LOCATIONS:
     for prof in PROFILES:
         query = f'"{prof}" "{loc}" India hiring posts'
@@ -43,8 +46,7 @@ for loc in LOCATIONS:
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            # Temporarily set to past 30 days to guarantee we find existing posts for the test
-            "dateRestrict": "d30" 
+            "dateRestrict": "d30" # Searching past 30 days to guarantee hits
         }
         
         try:
