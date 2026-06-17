@@ -33,7 +33,7 @@ for loc in LOCATIONS:
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            "dateRestrict": "d3"  # Pulls data strictly from the past 72 hours
+            "dateRestrict": "d30"  # Pulls data strictly from the past 72 hours
         }
         
         try:
