@@ -5,42 +5,52 @@ import requests
 import pandas as pd
 from datetime import datetime
 import re
+import json
 
-# 1. Securely grab keys and strip any accidental invisible spaces
+# 1. Secure Keys
 API_KEY = os.environ.get("GCP_API_KEY", "").strip()
 CX_ID = os.environ.get("GCP_CX_ID", "").strip()
 
-# Diagnostic Sanity Check - Stops the script immediately if GitHub fails to pass the keys
 if not CX_ID or not API_KEY:
-    print("CRITICAL ERROR: GitHub is NOT passing the secrets to Python! Please check your repository Secrets.")
+    print("CRITICAL ERROR: GitHub is NOT passing the secrets to Python!")
     sys.exit(1)
 
-LOCATIONS = ['Chittorgarh', 'Bhilwara', 'Udaipur', 'Mumbai', 'Navi Mumbai']
-KEYWORDS = ['Credit Manager', 'Credit Risk', 'SME', 'Underwriting', 'Corporate']
+# 2. Load the User's Custom JSON Configuration
+try:
+    with open("linkedin_scraper_config.json", "r") as config_file:
+        config = json.load(config_file)
+        print("Successfully loaded linkedin_scraper_config.json!")
+except Exception as e:
+    print(f"Failed to load config JSON: {e}")
+    sys.exit(1)
+
+LOCATIONS = config.get("target_locations", [])
+PROFILES = config.get("target_profiles", [])
+DASHBOARD_TITLE = config.get("dashboard_title", "Daily Credit Job Feed")
 
 extracted_posts = []
-
-print("Initializing Google Search API (72-Hour Window)...")
+print("Initializing Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
+# 3. Run the Scraper (Location x Profile)
+# We avoid looping through mandatory_keywords to protect your 100-query daily quota
 for loc in LOCATIONS:
-    for kw in KEYWORDS:
-        # Clean query targeting the specific words
-        query = f'"{kw}" "{loc}" India hiring posts'
+    for prof in PROFILES:
+        query = f'"{prof}" "{loc}" India hiring posts'
         print(f"Asking Google: {query}")
         
         params = {
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            "dateRestrict": "d30"  # Pulls data strictly from the past 72 hours
+            # Temporarily set to past 30 days to guarantee we find existing posts for the test
+            "dateRestrict": "d30" 
         }
         
         try:
             response = requests.get(url, params=params)
             data = response.json()
             
-            # Catch exact Google API errors
             if "error" in data:
                 print(f"API ERROR: {data['error']['message']}")
                 continue
@@ -54,35 +64,32 @@ for loc in LOCATIONS:
                     link = item.get("link", "")
                     title = item.get("title", "")
                     
-                    # Verify it is an actual LinkedIn post
                     if "/posts/" not in link and "/feed/update/" not in link:
                         continue
                     
-                    # Extract emails
                     emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
                     mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
                     
                     poster = title.split(" on LinkedIn")[0] if " on LinkedIn" in title else "Recruiter/Individual"
                     
                     job_record = {
-                        "Job Profile": "Feed Post: " + snippet[:45] + "...",
+                        "Job Profile": "Feed Post: " + snippet[:50] + "...",
                         "Posted by": poster[:30],
                         "Location": loc,
                         "Mail id": mail_id,
-                        "Posted Date": "Past 72 Hrs", 
+                        "Posted Date": "Past 30 Days", 
                         "Apply Link": link
                     }
                     
-                    # Avoid duplicates
                     if not any(post['Apply Link'] == job_record['Apply Link'] for post in extracted_posts):
                         extracted_posts.append(job_record)
             
-            time.sleep(1.5) # Pause to respect Google API limits
+            time.sleep(1.5) 
             
         except Exception as e:
             print(f"Error connecting to Google: {e}")
 
-# 3. Build the Dashboard HTML
+# 4. Build the HTML Dashboard
 if extracted_posts:
     df = pd.DataFrame(extracted_posts)
     
@@ -90,7 +97,7 @@ if extracted_posts:
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Daily Credit Job Feed (Past 72 Hours)</title>
+        <title>{DASHBOARD_TITLE}</title>
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 30px; background-color: #f4f6f9; }}
             h2 {{ color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }}
@@ -105,15 +112,15 @@ if extracted_posts:
         </style>
     </head>
     <body>
-        <h2>Individual Recruiter Posts: Credit & SME Teams (72-Hour Window)</h2>
-        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Powered by Google API</div>
+        <h2>{DASHBOARD_TITLE}</h2>
+        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Auto-pulled from Config</div>
         <table>
             <tr>
                 <th>Posted By</th>
                 <th>Post Preview</th>
                 <th>Location</th>
                 <th>Mail ID / Action</th>
-                <th>Posted Date</th>
+                <th>Search Window</th>
                 <th>Action</th>
             </tr>
     """
@@ -140,6 +147,6 @@ if extracted_posts:
     with open("job_dashboard.html", "w", encoding="utf-8") as f:
         f.write(html_content)
         
-    print(f"\nSuccess! Captured {len(extracted_posts)} feed posts using Google.")
+    print(f"\nSuccess! Captured {len(extracted_posts)} feed posts using your JSON Config.")
 else:
-    print("\nNo matching feed posts found in the past 72 hours.")
+    print("\nNo matching feed posts found, even looking back 30 days.")
