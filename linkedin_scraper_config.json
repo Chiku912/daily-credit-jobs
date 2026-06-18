@@ -10,18 +10,24 @@
     ],
     "target_profiles": [
         "Credit Manager",
-        "Credit Risk",
+        "Credit Risk Manager",
+        "Senior Credit Manager",
         "Credit Underwriter",
-        "Corporate Credit Appraisal"
+        "Corporate Credit",
+        "Credit Analyst",
+        "Area Credit Manager"
     ],
     "mandatory_keywords": [
         "sme",
-        "large ticket",
-        "turnover",
-        "medium corporate",
-        "large corporate",
+        "corporate",
         "underwriting",
-        "caam"
+        "credit appraisal",
+        "working capital",
+        "term loan",
+        "cam",
+        "wholesale banking",
+        "mid corporate",
+        "large corporate"
     ],
     "output_schema": {
         "heading_1": "Posted by",
@@ -33,7 +39,7 @@
     },
     "automation_settings": {
         "headless_mode": true,
-        "time_filter_hours": 24,
+        "time_filter_hours": 72,
         "auto_extract_emails_from_text": true,
         "export_format": "interactive_html_dashboard"
     }
