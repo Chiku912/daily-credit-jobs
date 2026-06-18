@@ -31,14 +31,20 @@ LOCATIONS = config.get("target_locations", [])
 PROFILES = config.get("target_profiles", [])
 DASHBOARD_TITLE = config.get("dashboard_title", "Daily Credit Job Feed")
 
+# ── NEW: Extract LinkedIn numeric Job ID to fix duplicate detection ──
+def extract_job_id(url):
+    match = re.search(r'-(\d+)\?', url)
+    return match.group(1) if match else url
+
 extracted_posts = []
+seen_job_ids = set()   # ── NEW: track by Job ID, not full URL ──
+
 print("Initializing Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
-# 3. Run the Scraper (STRICT MATCHING VERSION)
+# 3. Run the Scraper
 for loc in LOCATIONS:
     for prof in PROFILES:
-        # Enforcing STRICT matching by targeting LinkedIn job view pages directly
         query = f'intitle:"{prof}" "{loc}" site:in.linkedin.com/jobs/view'
         print(f"Asking Google: {query}")
         
@@ -46,7 +52,7 @@ for loc in LOCATIONS:
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            "dateRestrict": "d3" # Setting to 3 days to only get fresh, active jobs
+            "dateRestrict": "d3"
         }
         
         try:
@@ -62,42 +68,49 @@ for loc in LOCATIONS:
             
             if "items" in data:
                 for item in data["items"]:
-                    snippet = item.get("snippet", "") 
+                    snippet = item.get("snippet", "")
                     link = item.get("link", "")
                     title = item.get("title", "")
-                    
-                    # STRICT FILTER: Ensure your exact target profile is in the job title
+
+                    # STRICT FILTER: profile keyword must appear in job title
                     if prof.lower() not in title.lower():
+                        print(f"   SKIPPED (title mismatch): {title[:60]}")
                         continue
-                    
+
+                    # ── NEW: deduplicate by LinkedIn Job ID ──
+                    job_id = extract_job_id(link)
+                    if job_id in seen_job_ids:
+                        print(f"   SKIPPED (duplicate job ID {job_id}): {title[:60]}")
+                        continue
+                    seen_job_ids.add(job_id)
+
                     emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
                     mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
-                    
-                    # Clean up the dashboard title
+
                     poster = title.split(" hiring ")[0] if " hiring " in title else title.split(" | ")[0]
                     clean_title = title.split(" hiring ")[1].split(" in ")[0] if " hiring " in title else title
-                    
+
                     job_record = {
                         "Job Profile": clean_title[:70],
                         "Posted by": poster[:30],
                         "Location": loc,
                         "Mail id": mail_id,
-                        "Posted Date": datetime.now().strftime('%Y-%m-%d'), 
+                        "Posted Date": datetime.now().strftime('%Y-%m-%d'),
                         "Apply Link": link
                     }
-                    
-                    if not any(post['Apply Link'] == job_record['Apply Link'] for post in extracted_posts):
-                        extracted_posts.append(job_record)
-            
-            time.sleep(1.5) 
-            
+
+                    extracted_posts.append(job_record)
+                    print(f"   ADDED: {clean_title[:60]} | ID: {job_id}")
+
+            time.sleep(1.5)
+
         except Exception as e:
             print(f"Error connecting to Google: {e}")
 
 # 4. Build the HTML Dashboard
 if extracted_posts:
     df = pd.DataFrame(extracted_posts)
-    
+
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -118,7 +131,7 @@ if extracted_posts:
     </head>
     <body>
         <h2>{DASHBOARD_TITLE}</h2>
-        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Auto-pulled from Config</div>
+        <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Showing {len(extracted_posts)} unique credit roles</div>
         <table>
             <tr>
                 <th>Company / Posted By</th>
@@ -129,7 +142,7 @@ if extracted_posts:
                 <th>Action</th>
             </tr>
     """
-    
+
     for _, row in df.iterrows():
         mail_display = f'<span class="email-text">{row["Mail id"]}</span>' if "@" in row["Mail id"] else f'<span>{row["Mail id"]}</span>'
         html_content += f"""
@@ -142,16 +155,17 @@ if extracted_posts:
                 <td><a class="apply-btn" href="{row['Apply Link']}" target="_blank">View on LinkedIn</a></td>
             </tr>
         """
-        
+
     html_content += """
         </table>
     </body>
     </html>
     """
-    
+
     with open("job_dashboard.html", "w", encoding="utf-8") as f:
         f.write(html_content)
-        
-    print(f"\nSuccess! Captured {len(extracted_posts)} strict credit jobs.")
+
+    print(f"\nSuccess! Captured {len(extracted_posts)} unique credit jobs.")
+
 else:
-    print("\nNo matching credit jobs found in the last 3 days. Try checking again tomorrow!")
+    print("\nNo matching credit jobs found in the last 3 days. Try again tomorrow!")
