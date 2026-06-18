@@ -15,7 +15,6 @@ if not CX_ID or not API_KEY:
     print("CRITICAL ERROR: GitHub is NOT passing the secrets to Python!")
     sys.exit(1)
 
-# NEW: Tracker to prove which key GitHub is actually using 
 print(f"DIAGNOSTIC -> Using API Key ending in: ...{API_KEY[-4:]}")
 print(f"DIAGNOSTIC -> Using CX ID ending in: ...{CX_ID[-4:]}")
 
@@ -36,17 +35,18 @@ extracted_posts = []
 print("Initializing Google Search API...")
 url = "https://customsearch.googleapis.com/customsearch/v1"
 
-# 3. Run the Scraper
+# 3. Run the Scraper (STRICT MATCHING VERSION)
 for loc in LOCATIONS:
     for prof in PROFILES:
-        query = f'"{prof}" "{loc}" India hiring posts'
+        # Enforcing STRICT matching by targeting LinkedIn job view pages directly
+        query = f'intitle:"{prof}" "{loc}" site:in.linkedin.com/jobs/view'
         print(f"Asking Google: {query}")
         
         params = {
             "key": API_KEY,
             "cx": CX_ID,
             "q": query,
-            "dateRestrict": "d30" # Searching past 30 days to guarantee hits
+            "dateRestrict": "d3" # Setting to 3 days to only get fresh, active jobs
         }
         
         try:
@@ -66,20 +66,23 @@ for loc in LOCATIONS:
                     link = item.get("link", "")
                     title = item.get("title", "")
                     
-                    if "/posts/" not in link and "/feed/update/" not in link:
+                    # STRICT FILTER: Ensure your exact target profile is in the job title
+                    if prof.lower() not in title.lower():
                         continue
                     
                     emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', snippet)
                     mail_id = ", ".join(set(emails)) if emails else "Apply via Link"
                     
-                    poster = title.split(" on LinkedIn")[0] if " on LinkedIn" in title else "Recruiter/Individual"
+                    # Clean up the dashboard title
+                    poster = title.split(" hiring ")[0] if " hiring " in title else title.split(" | ")[0]
+                    clean_title = title.split(" hiring ")[1].split(" in ")[0] if " hiring " in title else title
                     
                     job_record = {
-                        "Job Profile": "Feed Post: " + snippet[:50] + "...",
+                        "Job Profile": clean_title[:70],
                         "Posted by": poster[:30],
                         "Location": loc,
                         "Mail id": mail_id,
-                        "Posted Date": "Past 30 Days", 
+                        "Posted Date": datetime.now().strftime('%Y-%m-%d'), 
                         "Apply Link": link
                     }
                     
@@ -118,11 +121,11 @@ if extracted_posts:
         <div class="meta">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Auto-pulled from Config</div>
         <table>
             <tr>
-                <th>Posted By</th>
-                <th>Post Preview</th>
+                <th>Company / Posted By</th>
+                <th>Exact Job Title</th>
                 <th>Location</th>
                 <th>Mail ID / Action</th>
-                <th>Search Window</th>
+                <th>Scraped Date</th>
                 <th>Action</th>
             </tr>
     """
@@ -136,7 +139,7 @@ if extracted_posts:
                 <td>{row['Location']}</td>
                 <td>{mail_display}</td>
                 <td>{row['Posted Date']}</td>
-                <td><a class="apply-btn" href="{row['Apply Link']}" target="_blank">View Post</a></td>
+                <td><a class="apply-btn" href="{row['Apply Link']}" target="_blank">View on LinkedIn</a></td>
             </tr>
         """
         
@@ -149,6 +152,6 @@ if extracted_posts:
     with open("job_dashboard.html", "w", encoding="utf-8") as f:
         f.write(html_content)
         
-    print(f"\nSuccess! Captured {len(extracted_posts)} feed posts using your JSON Config.")
+    print(f"\nSuccess! Captured {len(extracted_posts)} strict credit jobs.")
 else:
-    print("\nNo matching feed posts found, even looking back 30 days.")
+    print("\nNo matching credit jobs found in the last 3 days. Try checking again tomorrow!")
